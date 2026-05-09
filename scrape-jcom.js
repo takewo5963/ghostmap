@@ -13,7 +13,29 @@ const searchUrl = 'https://tvguide.myjcom.jp/search/event/?keyword=%E5%BF%83%E9%
 
     await page.waitForTimeout(3000);
 
-    const items = await page.evaluate(() => {
+    const items = await getListItems(page);
+
+    for (const item of items) {
+        const detail = await getDetailPage(page, item.title);
+
+        item.url = detail.url;
+        item.detail = detail.detail;
+
+        await page.goto(searchUrl, {
+            waitUntil: 'networkidle',
+            timeout: 60000
+        });
+
+        await page.waitForTimeout(1000);
+    }
+
+    console.log(JSON.stringify(items, null, 2));
+
+    await browser.close();
+})();
+
+async function getListItems(page) {
+    return await page.evaluate(() => {
         const text = document.body.innerText;
         const lines = text
             .split('\n')
@@ -44,14 +66,79 @@ const searchUrl = 'https://tvguide.myjcom.jp/search/event/?keyword=%E5%BF%83%E9%
                 time: timeMatch[4] + ' ～ ' + timeMatch[5],
                 station: station,
                 detail: '',
-                url: location.href
+                url: ''
             });
         }
 
         return results;
     });
+}
 
-    console.log(JSON.stringify(items, null, 2));
+async function getDetailPage(page, title) {
+    try {
+        const locator = page.getByText(title, { exact: true }).first();
 
-    await browser.close();
-})();
+        await locator.click({
+            timeout: 10000
+        });
+
+        await page.waitForLoadState('networkidle', {
+            timeout: 60000
+        });
+
+        await page.waitForTimeout(1000);
+
+        const url = page.url();
+        const detail = await page.evaluate(() => {
+            const text = document.body.innerText;
+            const lines = text
+                .split('\n')
+                .map((line) => line.trim())
+                .filter((line) => line !== '');
+
+            const detailStartWords = [
+                '番組内容',
+                '番組詳細内容',
+                '詳細内容'
+            ];
+
+            for (const word of detailStartWords) {
+                const index = lines.findIndex((line) => line === word);
+
+                if (index >= 0) {
+                    const detailLines = [];
+
+                    for (let i = index + 1; i < lines.length; i++) {
+                        if (
+                            lines[i] === '出演者' ||
+                            lines[i] === '放送スケジュール一覧' ||
+                            lines[i] === '同じ出演者' ||
+                            lines[i] === '関連番組' ||
+                            lines[i] === '録画予約'
+                        ) {
+                            break;
+                        }
+
+                        detailLines.push(lines[i]);
+                    }
+
+                    return detailLines.join('\n').trim();
+                }
+            }
+
+            return '';
+        });
+
+        return {
+            url: url,
+            detail: detail
+        };
+
+    } catch (error) {
+        return {
+            url: '',
+            detail: '',
+            error: error.message
+        };
+    }
+}
