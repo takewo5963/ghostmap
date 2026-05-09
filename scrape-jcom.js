@@ -13,31 +13,45 @@ const searchUrl = 'https://tvguide.myjcom.jp/search/event/?keyword=%E5%BF%83%E9%
 
     await page.waitForTimeout(3000);
 
-    const result = await page.evaluate(() => {
-        const bodyText = document.body.innerText;
-        const links = [];
+    const items = await page.evaluate(() => {
+        const text = document.body.innerText;
+        const lines = text
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line !== '');
 
-        document.querySelectorAll('a').forEach((a) => {
-            const href = a.getAttribute('href') || '';
-            const text = a.textContent.trim();
+        const results = [];
 
-            if (href.includes('/program/') || text.includes('心霊') || text.includes('怖い')) {
-                links.push({
-                    text: text,
-                    href: href
-                });
+        for (let i = 0; i < lines.length; i++) {
+            const timeMatch = lines[i].match(/^([0-9]{1,2})\/([0-9]{1,2})\((.)\)([0-9]{1,2}:[0-9]{2})～([0-9]{1,2}:[0-9]{2})$/);
+
+            if (!timeMatch) {
+                continue;
             }
-        });
 
-        return {
-            title: document.title,
-            bodyStart: bodyText.substring(0, 3000),
-            linkCount: links.length,
-            links: links.slice(0, 20)
-        };
+            const title = lines[i - 1] || '';
+            const station = lines[i + 1] || '';
+
+            if (!title || !station) {
+                continue;
+            }
+
+            results.push({
+                title: title,
+                month: timeMatch[1],
+                day: timeMatch[2],
+                week: timeMatch[3],
+                time: timeMatch[4] + ' ～ ' + timeMatch[5],
+                station: station,
+                detail: '',
+                url: location.href
+            });
+        }
+
+        return results;
     });
 
-    console.log(JSON.stringify(result, null, 2));
+    console.log(JSON.stringify(items, null, 2));
 
     await browser.close();
 })();
