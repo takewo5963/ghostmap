@@ -19,3 +19,6 @@ jobs:
       - run: npx playwright install chromium --with-deps
 
       - run: npm run scrape
+        env:
+          SAVE_URL: ${{ secrets.SAVE_URL }}
+          BANGUMI_SECRET: ${{ secrets.BANGUMI_SECRET }}
