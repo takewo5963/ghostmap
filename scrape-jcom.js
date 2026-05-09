@@ -31,6 +31,17 @@ const searchUrl = 'https://tvguide.myjcom.jp/search/event/?keyword=%E5%BF%83%E9%
 
     console.log(JSON.stringify(items, null, 2));
 
+    const params = new URLSearchParams();
+    params.append('secret', process.env.BANGUMI_SECRET);
+    params.append('data', JSON.stringify(items));
+
+    const response = await fetch(process.env.SAVE_URL, {
+        method: 'POST',
+        body: params
+    });
+
+    console.log(await response.text());
+
     await browser.close();
 })();
 
